@@ -1,0 +1,118 @@
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+import pickle
+import numpy as np
+import scipy.io as sio
+
+def split_data(data, labels, split_sizes=[0.8, 0.2]):
+    '''
+    Splits the dataset into sets of the given proportions
+    Args:
+        data (tensor): The data to be split
+        labels (tensor): The labels to be split
+        split_sizes ([int]): The relative sizes of the splits
+    Returns ([(tensor, tensor)]): The list of splits 
+    '''
+    start_index = 0
+    splits = []
+    split_sizes = [split_size/sum(split_sizes) for split_size in split_sizes]
+    for split_size in split_sizes:
+        end_index = max(int(data.size(0)*split_size)+start_index, data.size(0))
+        splits.append(
+            (data[start_index, end_index], labels[start_index, end_index])
+        )
+        start_index = end_index
+    return splits
+
+def load_pickled_gym_data(path_to_data, val_split=0.2):
+    '''
+    Takes pickled gym data and prepares it for pytorch use
+    Args:
+        path_to_data (str): Path to the .pickle file with data
+        val_split (float): What fraction of data to use for validation
+    Returns ({data}): A dict with data in training and validation splits
+    '''
+    assert val_split <= 1 and val_split >= 0, \
+        'val_split must be between 0 and 1'
+    
+    data = pickle.load(open(path_to_data, 'rb'))
+    parameters = data['parameters']
+    data_size = parameters['rollouts']*parameters['timesteps_per_rollout']
+    val_index = data_size - int(data_size*val_split)
+    val_index = val_index - (val_index % parameters['timesteps_per_rollout'])
+
+    for key, value in data.items():
+        if key == 'parameters':
+            continue
+        assert len(value) == data_size, \
+            'non-parameter data should contain data_size ({}) entries'.format(
+                data_size
+            )
+        if key == 'imgs':
+            value = np.transpose(value, (0,3,1,2))
+        if (np.array(value).dtype.kind in ['f','u','i']):
+            value = torch.from_numpy(np.array(value, dtype=np.float32))
+        train, valid = value[:val_index], value[val_index:data_size]
+        data[key] = train, valid
+    return data
+
+def load_lunarlander_data(path_to_data):
+    '''
+    Takes pickled gym LunarLander-v2 data and prepares it for pytorch use
+    Args:
+        path_to_data (str): Path to the .pickle file with data
+    Returns (tensor, tensor): The images and corresponing lander positions
+    '''
+    
+    data, _ = load_pickled_gym_data(path_to_data, 0)
+    images = data['imgs']
+    labels = data['observations']
+    labels = labels.narrow(1,0,2)
+    return images, labels
+
+def read_svhn_data(path_to_data):
+    '''
+    Reads and returns the images for the svhn dataset
+    Args:
+        path_to_data (str): Path to the binary file containing images and labels
+    Returns (tensor, tensor): The images wrap-padded to be 64x64 and the labels
+    '''
+
+    data = sio.loadmat(path_to_data)
+    images = data['X']
+    images = np.transpose(images, (3,2,0,1))
+    images = np.pad(images, ((0,0),(0,0),(0,32),(0,32)), mode='wrap')
+    images = images/255
+    images = torch.from_numpy(images)
+    labels = data['y']
+    labels = labels.reshape((-1))
+    labels = labels-1
+    labels = np.eye(10)[labels]
+    labels = torch.from_numpy(labels)
+    return images, labels
+
+def load_stl_images(path_to_images, path_to_labels=None):
+    '''
+    Reads and returns the images and labels for the STL-10 dataset
+    Args:
+        path_to_images (str): Path to the binary file containing images
+        path_to_labels (str): Path to the binary file containing labels 
+    Returns (tensor, tensor): The images with channels first and labels
+    '''
+
+    with open(path_to_images, 'rb') as f:
+        everything = np.fromfile(f, dtype=np.uint8)
+        images = np.reshape(everything, (-1, 3, 96, 96))
+        images = images/255
+        images = torch.from_numpy(images)
+
+    if not path_to_labels is None:
+        with open(path_to_labels, 'rb') as f:
+            labels = np.fromfile(f, dtype=np.uint8)
+            labels = labels-1
+            labels = np.eye(10)[labels]
+            labels = torch.from_numpy(labels)
+    else:
+        labels = None
+    
+    return images, labels
