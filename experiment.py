@@ -20,7 +20,7 @@ from perceptual_networks import AlexNet
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
-    load_pickled_gym_data, load_stl_images
+    load_svhn_data, load_stl_data
 
 
 def generate_autoencoders(index_file, dataset_name, data, epochs=100,
@@ -60,10 +60,11 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 'network',
                 'z_dim',
                 'gamma',
-                'perceptual_net'
+                'perceptual_net',
+                'validation_loss'
             ])
 
-    input_size = (data.size()[2], data.size()[3])
+    input_size = (data[0].size()[2], data[0].size()[3])
 
     # For each parameter combination
     for network,  z_dim,  gamma,  perceptual_net in product(
@@ -86,7 +87,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             index_reader = csv.reader(index, delimiter='\t')
             field_names = next(index_reader)
             for row in index_reader:
-                if list(row[1:]) == parameters:
+                if list(row[1:-1]) == parameters:
                     already_trained = True
                     break
         # If a model has already been trained a new one won't be
@@ -103,7 +104,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
         )
 
         # Train the autoencoder with the data
-        model, model_path = train_autoencoder(
+        model, model_path, val_loss = train_autoencoder(
             data,
             model,
             epochs,
@@ -124,7 +125,8 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 str(network),
                 str(z_dim),
                 str(gamma),
-                str(perceptual_net)
+                str(perceptual_net),
+                str(val_loss)
             ])
 
 def generate_dense_architectures(hidden_sizes, hidden_nrs):
@@ -178,7 +180,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
     if not os.path.isfile(results_file):
         with open(results_file, 'a') as results:
             results_writer = csv.writer(results, delimiter='\t')
-            index_writer.writerow([
+            results_writer.writerow([
                 'autoencoder_path',
                 'dataset_name',
                 'input_size',
@@ -187,15 +189,16 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'z_dim',
                 'gamma',
                 'perceptual_net',
+                'autoencoder_val_loss',
                 'predictor_path',
                 'architecture',
                 'hidden_function',
                 'out_function',
                 'predictor_epochs',
-                'validation_loss (MSE)',
-                'test_loss (MSE)',
-                'Mean L1 distance',
-                'Mean L2 distance',
+                'validation_MSE',
+                'test_MSE',
+                'Mean_L1_distance',
+                'Mean_L2_distance',
                 'Accuracy'
             ])
     # Setup variables, early stopping and losses that is used by all tests
@@ -333,8 +336,9 @@ def main():
     )
     parser.add_argument(
         #To add a perceptual net, append its name here and preprocessing later
-        '--ae_perceptuals', type=str, choices=['AlexNet'], default=['AlexNet'],
-        nargs='+', help='The different autoencoder perceptual networks to use'
+        '--ae_perceptuals', type=str, choices=['None', 'AlexNet'],
+        default=['None', 'AlexNet'], nargs='+',
+        help='The different autoencoder perceptual networks to use'
     )
     parser.add_argument(
         '--predictor_epochs', type=int, default=50,
@@ -355,10 +359,12 @@ def main():
         help='Path to save results to'
 
     )
+    #TODO: Make work
     parser.add_argument(
         '--no_gpu', action='store_true',
         help='The GPU will not be used even if it is available'
     )
+    #TODO: Add verbosity control
 
     args = parser.parse_args()
     
@@ -368,8 +374,116 @@ def main():
             'Use gym_datagenerator.py to generate data '
             'then uncomment and add file names below'
         )
-        data, _ = load_lunarlander_data(
-            './dataset/LunarLander-v2/<name_of_file>'
+        #data, _ = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>'
+        #)
+    elif args.data == 'stl10':
+        data, _ = load_stl_data('./datasets/stl10/unlabeled_X.bin')
+    elif args.data == 'svhn':
+        data, _ = load_svhn_data('./datasets/svhn/extra_32x32.mat')
+    else:
+        raise ValueError(
+            f'Dataset {args.data} does not match any implemented dataset name'
         )
-        train_data, validation_data = split_data(data, _)
-        
+    train_data, validation_data = split_data([data])
+    train_data = train_data[0]
+    validation_data = validation_data[0]
+
+    # Get autoencoder networks, add code here to add new autoencoders
+    networks = []
+    for network in args.ae_networks:
+        if network == 'FourLayerCVAE':
+            networks.append(FourLayerCVAE)
+        else:
+            raise ValueError(
+                f'{network} does not match any known autoencoder'
+            )
+    
+    # Get perceptual networks, add code here to add new perceptual networks
+    perceptual_nets = []
+    for perceptual_net in args.ae_perceptuals:
+        if perceptual_net == 'None':
+            perceptual_nets.append(None)
+        elif perceptual_net == 'AlexNet':
+            perceptual_nets.append(AlexNet())
+        else:
+            raise ValueError(
+                f'{perceptual_net} does not match any known perceptual net'
+            )
+
+    # Train the missing autoencoders
+    generate_autoencoders(
+        index_file = args.autoencoder_index,
+        dataset_name = args.data,
+        data = (train_data, validation_data), 
+        epochs = args.ae_epochs,
+        batch_size = args.ae_batch_size,
+        networks = networks,
+        z_dims = args.ae_zs,
+        gammas = args.ae_gammas,
+        perceptual_nets = perceptual_nets
+    )
+
+    # Load the predictor training and testing data, code here to add dataset
+    if args.data == 'lunarlander':
+        raise NotImplementedError(
+            'Use gym_datagenerator.py to generate data '
+            'then uncomment and add file names below'
+        )
+        #data, labels = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>'
+        #)
+        #test_data, test_labels = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>'
+        #)
+    elif args.data == 'stl10':
+        data, labels = load_stl_data(
+            './datasets/stl10/train_X.bin',
+            './datasets/stl10/train_y.bin'
+        )
+        test_data, test_labels = load_stl_data(
+            './datasets/stl10/test_X.bin',
+            './datasets/stl10/test_y.bin'
+        )
+    elif args.data == 'svhn':
+        data, labels = load_svhn_data(
+            './datasets/svhn/train_32x32.mat'
+        )
+        test_data, test_labels = load_svhn_data(
+            './datasets/svhn/test_32x32.mat'
+        )
+    else:
+        raise ValueError(
+            f'Dataset {args.data} does not match any implemented dataset name'
+        )
+    train_data, validation_data = split_data([data, labels])
+    test_data = (test_data, test_labels)
+
+    # Create architectures TODO: Add ability to control this
+    architectures = [
+        [], [32], [64], [32,32], [64,32], [64,64], [128,128]
+    ]
+
+    # Set hidden and out functions TODO: Add ability to control this
+    hidden_functions = [nn.LeakyReLU, nn.Sigmoid]
+    out_functions = [None, nn.Softmax]
+
+    # Run experiments
+    run_experiment(
+        results_file = args.results_path,
+        dataset_name = args.data,
+        train_data = train_data,
+        validation_data = validation_data,
+        test_data = test_data,
+        autoencoder_index = args.autoencoder_index,
+        epochs = args.predictor_epochs,
+        batch_size = args.predictor_batch_size,
+        predictor_architectures = architectures,
+        predictor_hidden_functions = hidden_functions,
+        predictor_output_functions = out_functions,
+        allowed_ae_parameters = {} #TODO: Add the ability to control this
+    )
+
+# When this file is executed independently, execute the main function
+if __name__ == "__main__":
+    main()

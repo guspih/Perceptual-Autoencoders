@@ -4,22 +4,21 @@ import pickle
 import numpy as np
 import scipy.io as sio
 
-def split_data(data, labels, split_sizes=[0.8, 0.2]):
+def split_data(datas, split_sizes=[0.8, 0.2]):
     '''
     Splits the dataset into sets of the given proportions
     Args:
-        data (tensor): The data to be split
-        labels (tensor): The labels to be split
+        datas ([tensor]): The data to be split
         split_sizes ([int]): The relative sizes of the splits
-    Returns ([(tensor, tensor)]): The list of splits 
+    Returns ([[tensor]]): The list of splits
     '''
     start_index = 0
     splits = []
     split_sizes = [split_size/sum(split_sizes) for split_size in split_sizes]
     for split_size in split_sizes:
-        end_index = max(int(data.size(0)*split_size)+start_index, data.size(0))
+        end_index = min(int(datas[0].size(0)*split_size)+start_index, datas[0].size(0))
         splits.append(
-            (data[start_index, end_index], labels[start_index, end_index])
+            [data[start_index:end_index] for data in datas]
         )
         start_index = end_index
     return splits
@@ -65,12 +64,12 @@ def load_lunarlander_data(path_to_data):
     '''
     
     data, _ = load_pickled_gym_data(path_to_data, 0)
-    images = data['imgs']
+    images = data['imgs'].float()
     labels = data['observations']
-    labels = labels.narrow(1,0,2)
+    labels = labels.narrow(1,0,2).float()
     return images, labels
 
-def read_svhn_data(path_to_data):
+def load_svhn_data(path_to_data):
     '''
     Reads and returns the images for the svhn dataset
     Args:
@@ -83,15 +82,15 @@ def read_svhn_data(path_to_data):
     images = np.transpose(images, (3,2,0,1))
     images = np.pad(images, ((0,0),(0,0),(0,32),(0,32)), mode='wrap')
     images = images/255
-    images = torch.from_numpy(images)
+    images = torch.from_numpy(images).float()
     labels = data['y']
     labels = labels.reshape((-1))
     labels = labels-1
     labels = np.eye(10)[labels]
-    labels = torch.from_numpy(labels)
+    labels = torch.from_numpy(labels).float()
     return images, labels
 
-def load_stl_images(path_to_images, path_to_labels=None):
+def load_stl_data(path_to_images, path_to_labels=None):
     '''
     Reads and returns the images and labels for the STL-10 dataset
     Args:
@@ -104,14 +103,14 @@ def load_stl_images(path_to_images, path_to_labels=None):
         everything = np.fromfile(f, dtype=np.uint8)
         images = np.reshape(everything, (-1, 3, 96, 96))
         images = images/255
-        images = torch.from_numpy(images)
+        images = torch.from_numpy(images).float()
 
     if not path_to_labels is None:
         with open(path_to_labels, 'rb') as f:
             labels = np.fromfile(f, dtype=np.uint8)
             labels = labels-1
             labels = np.eye(10)[labels]
-            labels = torch.from_numpy(labels)
+            labels = torch.from_numpy(labels).float()
     else:
         labels = None
     

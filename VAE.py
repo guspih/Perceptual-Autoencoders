@@ -247,7 +247,7 @@ def train_autoencoder(data, model, epochs, batch_size, gpu=False,
         gpu (bool): Whether to train on the GPU
         display (bool): Whether to display the recreated images
         save_path (str): Path to folder where the trained network will be stored
-    Returns (nn.Module, str): The trained autoencoder and file path of the model
+    Returns (nn.Module, str, float): The trained model, its path, and best loss
     '''
     train_data, val_data = data
     train_data = TensorDataset(train_data, train_data)
@@ -274,7 +274,7 @@ def train_autoencoder(data, model, epochs, batch_size, gpu=False,
         print(
             (
                 'Starting autoencoder training. ' 
-                f'Best checkpoint stored in {save_path}/'
+                f'Best checkpoint stored in ./{save_path}'
             )
         )   
         model, model_file, val_loss = run_training(
@@ -296,7 +296,7 @@ def train_autoencoder(data, model, epochs, batch_size, gpu=False,
         for batch_id in range(len(train_data)):
             show_recreation(train_data, model, block=True)
     
-    return model, model_file
+    return model, model_file, val_loss
 
 def encode_data(autoencoder, data, batch_size=512):
     dataset = TensorDataset(data)
