@@ -1,8 +1,26 @@
 import torch
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader, Dataset
 import pickle
 import numpy as np
 import scipy.io as sio
+
+class PreprocessDataset(Dataset):
+    '''
+    A Dataset that must be fractioned and each fraction need to be preprocessed
+    Args:
+        datas ([[any]]): A list of the data where each data contains datapoints
+        preprocess (f(any)->tensor): Function from datapointsto tensor
+    '''
+    def __init__(self, datas, preprocess):
+        self.datas = datas
+        self.preprocess = preprocess
+
+    def __getitem__(self, index):
+        return tuple(self.preprocess(data[index]) for data in self.datas)
+
+    def __len__(self):
+        return len(self.datas[0])
+
 
 def split_data(datas, split_sizes=[0.8, 0.2]):
     '''
@@ -71,7 +89,7 @@ def load_lunarlander_data(path_to_data):
 
 def load_svhn_data(path_to_data):
     '''
-    Reads and returns the images for the svhn dataset
+    Reads and returns the data for the svhn dataset
     Args:
         path_to_data (str): Path to the binary file containing images and labels
     Returns (tensor, tensor): The images wrap-padded to be 64x64 and the labels
