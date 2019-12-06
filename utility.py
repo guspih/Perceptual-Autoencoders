@@ -78,7 +78,7 @@ def run_training(model, train_loader, val_loader, loss,
     '''
     save_file = (
         model. __class__.__name__ + 
-        datetime.datetime.now().strftime('_%Y-%m-%d_%Hh%M.pt')
+        datetime.datetime.now().strftime('_%Y-%m-%d_%Hh%Mm%Ss.pt')
     )
     if save_path != '':
         save_file = save_path + '/' + save_file

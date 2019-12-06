@@ -25,7 +25,8 @@ from dataset_loader import split_data, load_lunarlander_data, \
 
 def generate_autoencoders(index_file, dataset_name, data, epochs=100,
     batch_size=512, networks=[FourLayerCVAE], z_dims=[32,64,128],
-    gammas=[0,0.001,0.01], perceptual_nets=[None, AlexNet()]
+    gammas=[0,0.001,0.01], perceptual_nets=[None, AlexNet()],
+    force_repeat=False
 ):
     '''
     Trains autoencoders with all combinations of the given parameters that are
@@ -40,6 +41,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
         z_dims ([int]): The z_dim values to try
         gammas ([float]): The gamma values to try (0 = non-variational)
         perceptual_nets ([nn.Module/None]): Perceptual networks for loss
+        force_repeat (bool): Whether to force new AE with same parameters
     '''
 
     #Create the index path + file if they don't exist already
@@ -81,18 +83,19 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             str(perceptual_net)
         ]
         
-        # Check if a model with these parameters have already been trained
-        already_trained = False
-        with open(index_file, 'r') as index:
-            index_reader = csv.reader(index, delimiter='\t')
-            field_names = next(index_reader)
-            for row in index_reader:
-                if list(row[1:-1]) == parameters:
-                    already_trained = True
-                    break
-        # If a model has already been trained a new one won't be
-        if already_trained:
-            continue
+        # Unless force repetition, don't repeat training with same parameters
+        if not force_repeat:
+            already_trained = False
+            with open(index_file, 'r') as index:
+                index_reader = csv.reader(index, delimiter='\t')
+                field_names = next(index_reader)
+                for row in index_reader:
+                    if list(row[1:-1]) == parameters:
+                        already_trained = True
+                        break
+            # Don't train a new AE if one with these parameters exists
+            if already_trained:
+                continue
 
         # Initialize an autoencoder model with the given parameters
         model = network(
@@ -149,7 +152,7 @@ def generate_dense_architectures(hidden_sizes, hidden_nrs):
 def run_experiment(results_file, dataset_name, train_data, validation_data,
     test_data, autoencoder_index, epochs, batch_size, predictor_architectures,
     predictor_hidden_functions, predictor_output_functions,
-    allowed_ae_parameters={}
+    allowed_ae_parameters={}, force_repeat=False
 ):
     '''
     Trains and tests fully connected networks with the given architectures on
@@ -168,6 +171,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
         predictor_hidden_functions ([f()->nn.Module]): Hidden layer functions
         predictor_out_functions ([f()->nn.Module]): Output activation functions
         allowed_ae_parameters ({[any]}): Allowed parameters (all if empty)
+        force_repeat (bool): Whether to force repeating old test
     '''
     
     #Create the results path + file if they don't exist already
@@ -201,10 +205,10 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'Mean_L2_distance',
                 'Accuracy'
             ])
-    # Setup variables, early stopping and losses that is used by all tests
+
+    # Setup variables and losses that is used by all tests
     image_size = (train_data[0].size()[2], train_data[0].size()[3])
     label_size = train_data[1].size()[1]
-    early_stop = EarlyStopper(patience=max(10, epochs/20))
     loss_function = torch.nn.MSELoss()
     losses = lambda output, target : [
         loss_function(output, target),
@@ -259,6 +263,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
             predictor_hidden_functions,
             predictor_output_functions
         ):
+
             # Initialize the predictor
             architecture = architecture.copy()
             architecture.append(label_size)
@@ -270,7 +275,29 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
             )
             optimizer = torch.optim.Adam(predictor.parameters())
 
+            # Unless force repetition, don't repeat test with same parameters
+            if not force_repeat:
+                parameters = [
+                    autoencoder_path,
+                    str(architecture),
+                    str(hidden_func),
+                    str(out_func),
+                    str(epochs)                
+                ]
+                already_tested = False
+                with open(results_file, 'r') as results:
+                    results_reader = csv.reader(results, delimiter='\t')
+                    field_names = next(results_reader)
+                    for row in results_reader:
+                        if list([row[i] for i in [0,10,11,12,13]]) == parameters:
+                            already_tested = True
+                            break
+                # If a model has already been tested new one won't be
+                if already_tested:
+                    continue
+
             # Train the predictor
+            early_stop = EarlyStopper(patience=max(10, epochs/20))
             predictor, predictor_path, validation_loss = run_training(
                 predictor, train_loader, val_loader, losses,
                 optimizer, 'checkpoints', epochs, epoch_update=early_stop
@@ -281,6 +308,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 predictor, test_loader, losses, optimizer,
                 epoch_name='Test',train=False
             )
+            print()
 
             # Write the results to a .csv file
             with open(results_file, 'a') as results:
@@ -293,8 +321,8 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 results_writer.writerow(
                     autoencoder_parameters +
                     [
-                        predictor_path, architecture, hidden_func,
-                        out_func, epochs, validation_loss
+                        predictor_path, architecture, str(hidden_func),
+                        str(out_func), epochs, validation_loss
                     ] +
                     test_losses
                 )
@@ -341,7 +369,7 @@ def main():
         help='The different autoencoder perceptual networks to use'
     )
     parser.add_argument(
-        '--predictor_epochs', type=int, default=50,
+        '--predictor_epochs', type=int, default=500,
         help='Nr of epochs to train predictors for'
     )
     parser.add_argument(
@@ -359,12 +387,31 @@ def main():
         help='Path to save results to'
 
     )
-    #TODO: Make work
+    #TODO: Implement
     parser.add_argument(
         '--no_gpu', action='store_true',
-        help='The GPU will not be used even if it is available'
+        help='GPUs will not be used even if they are available'
     )
-    #TODO: Add verbosity control
+    #TODO: Implement
+    parser.add_argument(
+        '--memory_wary', action='store_true',
+        help='Will attempt to lower RAM usage (possibly at cost of speed)'
+    )
+    #TODO: Implement
+    parser.add_argument(
+        '--verbose', action='store_true',
+        help='Will increase the amount of information relayed to the user'
+    )
+    parser.add_argument(
+        '--ae_repeat', action='store_true',
+        help='Force training of AEs that have already been tested'
+
+    )
+    parser.add_argument(
+        '--predictor_repeat', action='store_true',
+        help='Force training of predictors that have already been tested'
+
+    )
 
     args = parser.parse_args()
     
@@ -421,7 +468,8 @@ def main():
         networks = networks,
         z_dims = args.ae_zs,
         gammas = args.ae_gammas,
-        perceptual_nets = perceptual_nets
+        perceptual_nets = perceptual_nets,
+        force_repeat = args.ae_repeat
     )
 
     # Load the predictor training and testing data, code here to add dataset
@@ -465,10 +513,17 @@ def main():
     ]
 
     # Set hidden and out functions TODO: Add ability to control this
-    hidden_functions = [nn.LeakyReLU, nn.Sigmoid]
-    out_functions = [None, nn.Softmax]
+    hidden_functions = [nn.LeakyReLU]
+    out_functions = [None]
 
     # Run experiments
+    allowed_ae_parameters = {
+        'epochs' : [str(args.ae_epochs)],
+        'network' : [str(network) for network in networks],
+        'z_dim' : [str(z) for z in args.ae_zs],
+        'gamma' : [str(gamma) for gamma in args.ae_gammas],
+        'perceptual_net' : [str(net) for net in perceptual_nets]
+    }
     run_experiment(
         results_file = args.results_path,
         dataset_name = args.data,
@@ -481,7 +536,8 @@ def main():
         predictor_architectures = architectures,
         predictor_hidden_functions = hidden_functions,
         predictor_output_functions = out_functions,
-        allowed_ae_parameters = {} #TODO: Add the ability to control this
+        allowed_ae_parameters = allowed_ae_parameters,
+        force_repeat = args.predictor_repeat
     )
 
 # When this file is executed independently, execute the main function
