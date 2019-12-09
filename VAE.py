@@ -303,6 +303,7 @@ def encode_data(autoencoder, data, batch_size=512):
     data_loader = DataLoader(dataset, batch_size, shuffle=False)
     gpu = next(autoencoder.parameters()).is_cuda
     encoded_batches = []
+    autoencoder.eval()
     with torch.no_grad():
         for i, batch in enumerate(data_loader):
             batch = batch[0]
@@ -313,4 +314,5 @@ def encode_data(autoencoder, data, batch_size=512):
                 coded_batch = (coded_batch[0].cpu(), coded_batch[1].cpu())
                 batch = batch.cpu()
             encoded_batches.append(coded_batch[0])
+    autoencoder.train()
     return torch.cat(encoded_batches, dim=0)

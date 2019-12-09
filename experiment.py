@@ -52,6 +52,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
         except FileExistsError:
             pass
     if not os.path.isfile(index_file):
+        print(f'Creating a autoencoder index file at {index_file}...')
         with open(index_file, 'a') as index:
             index_writer = csv.writer(index, delimiter='\t')
             index_writer.writerow([
@@ -243,6 +244,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
         autoencoder = torch.load(autoencoder_path, map_location='cpu')
         
         # Encode and prepare the data
+        print(f'Encoding data with autoencoder at {autoencoder_path}...')
         train_encoded = encode_data(autoencoder,train_data[0],batch_size)
         train_dataset = TensorDataset(train_encoded, train_data[1])
         train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
@@ -376,7 +378,7 @@ def main():
         '--predictor_batch_size', type=int, default=512,
         help='Size of predictor batches'
     )
-    #TODO: Add arguments to use non-default architectures and functions
+    
     parser.add_argument(
         '--autoencoder_index', type=str, default='autoencoder_index.csv',
         help='Path to store/load autoencoder paths/parameters to/from'
@@ -386,21 +388,6 @@ def main():
         '--results_path', type=str, default='results.csv',
         help='Path to save results to'
 
-    )
-    #TODO: Implement
-    parser.add_argument(
-        '--no_gpu', action='store_true',
-        help='GPUs will not be used even if they are available'
-    )
-    #TODO: Implement
-    parser.add_argument(
-        '--memory_wary', action='store_true',
-        help='Will attempt to lower RAM usage (possibly at cost of speed)'
-    )
-    #TODO: Implement
-    parser.add_argument(
-        '--verbose', action='store_true',
-        help='Will increase the amount of information relayed to the user'
     )
     parser.add_argument(
         '--ae_repeat', action='store_true',
@@ -412,10 +399,22 @@ def main():
         help='Force training of predictors that have already been tested'
 
     )
+    #TODO: Implement
+    #parser.add_argument(
+    #    '--no_gpu', action='store_true',
+    #    help='GPUs will not be used even if they are available'
+    #)
+    #TODO: Implement
+    #parser.add_argument(
+    #    '--memory_wary', action='store_true',
+    #    help='Will attempt to lower RAM usage (possibly at cost of speed)'
+    #)
+    #TODO: Add arguments to use non-default architectures and functions
 
     args = parser.parse_args()
     
     # Load autoencoder dataset, add code here to add new datasets
+    print('Loading data for autoencoder training...')
     if args.data == 'lunarlander':
         raise NotImplementedError(
             'Use gym_datagenerator.py to generate data '
@@ -473,6 +472,7 @@ def main():
     )
 
     # Load the predictor training and testing data, code here to add dataset
+    print('Loading data for predictor training and testing...')
     if args.data == 'lunarlander':
         raise NotImplementedError(
             'Use gym_datagenerator.py to generate data '
