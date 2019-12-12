@@ -3,6 +3,7 @@ Experiments with perceptual loss and autoencoders.
 
 ## Requirements
 The repository have been tested with Python 3.6 and 3.7, Pytorch 1.2.0, Torchvision 0.4.0, and SciPy 1.3.1
+
 To use the OpenAI gym part of the repository (gym_datagenerator.py) you additionally need OpenAI gym with all its requirements for the desired gym environments as well as opencv-python (for cv2).
 Since gym_datagenerator.py generates files that does not require OpenAI gym it can be run in an independent environment.
 The repository have been tested with gym 0.14.0 and opencv-python 4.0.0.21
