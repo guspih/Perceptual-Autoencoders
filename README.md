@@ -1,5 +1,14 @@
 # Perceptual-Autoencoders
-Experiments with perceptual loss and autoencoders.
+Implementation of [Improving Image Autoencoder Embeddings with Perceptual Loss](https://arxiv.org/abs/2001.03444)
+Cite paper or repository with:
+```
+@article{pihlgren2020improving,
+    title={Improving Image Autoencoder Embeddings with Perceptual Loss},
+    author={Gustav Grund Pihlgren and Fredrik Sandin and Marcus Liwicki},
+    year={2020},
+    journal={arXiv preprint arXiv:2001.03444},
+}
+```
 
 ## Requirements
 The repository have been tested with Python 3.6 and 3.7, Pytorch 1.2.0, Torchvision 0.4.0, and SciPy 1.3.1
