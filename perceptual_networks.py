@@ -38,7 +38,6 @@ architecture_features = {
 def AlexNet(layer=5, pretrained=True, frozen=True, sigmoid_out=True):
     return SimpleExtractor('alexnet',layer,frozen,sigmoid_out)
 
-
 class SimpleExtractor(nn.Module):
     '''
     A simple feature extractor for torchvision models
