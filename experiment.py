@@ -16,7 +16,7 @@ from itertools import combinations_with_replacement, product
 # File imports
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
-from perceptual_networks import AlexNet
+from perceptual_networks import SimpleExtractor, architecture_features
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -24,9 +24,9 @@ from dataset_loader import split_data, load_lunarlander_data, \
 
 
 def generate_autoencoders(index_file, dataset_name, data, epochs=100,
-    batch_size=512, networks=[FourLayerCVAE], z_dims=[32,64,128],
-    gammas=[0,0.001,0.01], perceptual_nets=[None, AlexNet()],
-    force_repeat=False
+    batch_size=512, networks=[FourLayerCVAE],
+    z_dims=[32,64,128], gammas=[0,0.001,0.01],
+    perceptual_nets=[None, SimpleExtractor('alexnet', 5)], force_repeat=False
 ):
     '''
     Trains autoencoders with all combinations of the given parameters that are
@@ -365,10 +365,12 @@ def main():
         help='The different autoencoder gammas to use'
     )
     parser.add_argument(
-        #To add a perceptual net, append its name here and preprocessing later
-        '--ae_perceptuals', type=str, choices=['None', 'AlexNet'],
-        default=['None', 'AlexNet'], nargs='+',
-        help='The different autoencoder perceptual networks to use'
+        '--perceptual_nets', type=str, default=['None', 'alexnet'], nargs='+',
+        help='The different perceptual networks to use for autoencoders'
+    )
+    parser.add_argument(
+        '--perceptual_layers', type=int, default=[5], nargs='+',
+        help='The different feature extraction layers to test'
     )
     parser.add_argument(
         '--predictor_epochs', type=int, default=500,
@@ -378,7 +380,6 @@ def main():
         '--predictor_batch_size', type=int, default=512,
         help='Size of predictor batches'
     )
-    
     parser.add_argument(
         '--autoencoder_index', type=str, default='autoencoder_index.csv',
         help='Path to store/load autoencoder paths/parameters to/from'
@@ -447,14 +448,16 @@ def main():
     
     # Get perceptual networks, add code here to add new perceptual networks
     perceptual_nets = []
-    for perceptual_net in args.ae_perceptuals:
+    for perceptual_net in args.perceptual_nets:
         if perceptual_net == 'None':
             perceptual_nets.append(None)
-        elif perceptual_net == 'AlexNet':
-            perceptual_nets.append(AlexNet())
+        elif perceptual_net in architecture_features:
+            for layer in args.perceptual_layers:
+                perceptual_nets.append(SimpleExtractor(perceptual_net, layer))
         else:
             raise ValueError(
-                f'{perceptual_net} does not match any known perceptual net'
+                f'{perceptual_net} does not match any known perceptual net\n'
+                'Select from: \n\t' + '\n\t'.join(architecture_features.keys())
             )
 
     # Train the missing autoencoders
