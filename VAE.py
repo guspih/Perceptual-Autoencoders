@@ -78,7 +78,7 @@ class FourLayerCVAE(nn.Module):
     def __init__(self, input_size=(64,64), z_dimensions=32,
         variational=True, gamma=20.0, perceptual_net=None
     ):
-        super(FourLayerCVAE, self).__init__()
+        super().__init__()
 
         #Parameter check
         if (input_size[0] - 64) % 16 != 0 or (input_size[1] - 64) % 16 != 0:
@@ -122,14 +122,14 @@ class FourLayerCVAE(nn.Module):
         self.relu = nn.ReLU()
 
     def __str__(self):
-        string = super(FourLayerCVAE, self).__str__()[:-1]
+        string = super().__str__()[:-1]
         string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
                 self.variational,self.gamma
             )
         return string
 
     def __repr__(self):
-        string = super(FourLayerCVAE, self).__repr__()[:-1]
+        string = super().__repr__()[:-1]
         string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
                 self.variational,self.gamma
             )
