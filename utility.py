@@ -100,7 +100,7 @@ def run_training(model, train_loader, val_loader, loss,
             f'\rEpoch {epoch} - '
             f'Train loss {training_losses[0]:.5f} - '
             f'Validation loss {validation_losses[0]:.5f}',
-            ' '*30
+            ' '*32
         )
 
         if validation_losses[0] < best_validation_loss:
