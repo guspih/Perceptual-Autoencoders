@@ -289,7 +289,13 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 already_tested = False
                 with open(results_file, 'r') as results:
                     results_reader = csv.reader(results, delimiter='\t')
-                    field_names = next(results_reader)
+                    try:
+                        field_names = next(results_reader)
+                    except StopIteration:
+                        raise RuntimeError(
+                            f'Header is missing in {results_file} '
+                            f'Delete the file and run again'
+                        )
                     for row in results_reader:
                         if list([row[i] for i in [0,10,11,12,13]]) == parameters:
                             already_tested = True
@@ -361,7 +367,7 @@ def main():
         help='The different autoencoder z_dims to use'
     )
     parser.add_argument(
-        '--ae_gammas', type=float, default=[0,0.01], nargs='+',
+        '--ae_gammas', type=float, default=[0.0,0.01], nargs='+',
         help='The different autoencoder gammas to use'
     )
     parser.add_argument(

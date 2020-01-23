@@ -13,8 +13,6 @@ architecture_features = {
     'vgg16_bn' : ['features'],
     'vgg19' : ['features'],
     'vgg19_bn' : ['features'],
-    'vgg11' : ['features'],
-    'vgg11_bn' : ['features'],
     'densenet121' : ['features'],
     'densenet161' : ['features'],
     'densenet169' : ['features'],
