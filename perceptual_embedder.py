@@ -65,9 +65,9 @@ class PerceptualEmbedder(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(self.z_dimensions, deconv_flat_size),
             nn.ReLU(),
-            nn.Linear(deconv_flat_size, np.floor(self.perceptual_size/2)),
-            nn.ReLU,
-            nn.Linear(np.floor(self.perceptual_size/2), self.perceptual_size)
+            nn.Linear(deconv_flat_size, int(self.perceptual_size/2)),
+            nn.ReLU(),
+            nn.Linear(int(self.perceptual_size/2), self.perceptual_size)
         )
         
         self.dense = nn.Linear(self.z_dimensions, deconv_flat_size)

@@ -7,6 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import random
 import math
 import datetime
+import time
 import argparse
 import os
 import csv
@@ -17,6 +18,7 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
+from perceptual_embedder import PerceptualEmbedder
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -64,6 +66,8 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 'z_dim',
                 'gamma',
                 'perceptual_net',
+                'actual_epochs', 
+                'process_time',
                 'validation_loss'
             ])
 
@@ -91,7 +95,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 index_reader = csv.reader(index, delimiter='\t')
                 field_names = next(index_reader)
                 for row in index_reader:
-                    if list(row[1:-1]) == parameters:
+                    if list(row[1:-3]) == parameters:
                         already_trained = True
                         break
             # Don't train a new AE if one with these parameters exists
@@ -107,8 +111,9 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             perceptual_net = perceptual_net
         )
 
-        # Train the autoencoder with the data
-        model, model_path, val_loss = train_autoencoder(
+        # Train the autoencoder with the data and meassure the time it takes
+        timestamp = time.process_time()
+        model, model_path, val_loss, actual_epochs = train_autoencoder(
             data,
             model,
             epochs,
@@ -117,6 +122,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             display=False,
             save_path='checkpoints'
         )
+        elapsed_time = time.process_time() - timestamp
 
         # Save the path and parameters to index_file
         with open(index_file, 'a') as index:
@@ -130,6 +136,8 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 str(z_dim),
                 str(gamma),
                 str(perceptual_net),
+                str(actual_epochs),
+                str(elapsed_time),
                 str(val_loss)
             ])
 
@@ -194,12 +202,17 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'z_dim',
                 'gamma',
                 'perceptual_net',
+                'autoencoder_actual_epochs',
+                'autoencoder_time',
                 'autoencoder_val_loss',
                 'predictor_path',
                 'architecture',
                 'hidden_function',
                 'out_function',
                 'predictor_epochs',
+                'predictor_actual_epochs'
+                'predictor_train_time',
+                'predictor_test_time',
                 'validation_MSE',
                 'test_MSE',
                 'Mean_L1_distance',
@@ -297,25 +310,29 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                             f'Delete the file and run again'
                         )
                     for row in results_reader:
-                        if list([row[i] for i in [0,10,11,12,13]]) == parameters:
+                        if list([row[i] for i in [0,12,13,14,15]]) == parameters:
                             already_tested = True
                             break
                 # If a model has already been tested new one won't be
                 if already_tested:
                     continue
 
-            # Train the predictor
+            # Train the predictor and meassure the time it takes
             early_stop = EarlyStopper(patience=max(10, epochs/20))
-            predictor, predictor_path, validation_loss = run_training(
+            timestamp = time.process_time()
+            predictor, predictor_path, validation_loss, actual_epochs = run_training(
                 predictor, train_loader, val_loader, losses,
                 optimizer, 'checkpoints', epochs, epoch_update=early_stop
             )
+            train_time = time.process_time() - timestamp
 
-            # Test the predictor
+            # Test the predictor and meassure the time it takes
+            timestamp = time.process_time()
             test_losses = run_epoch(
                 predictor, test_loader, losses, optimizer,
                 epoch_name='Test',train=False
             )
+            test_time = time.process_time() - timestamp
             print()
 
             # Write the results to a .csv file
@@ -330,7 +347,8 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                     autoencoder_parameters +
                     [
                         predictor_path, architecture, str(hidden_func),
-                        str(out_func), epochs, validation_loss
+                        str(out_func), epochs, actual_epochs, train_time,
+                        test_time, validation_loss
                     ] +
                     test_losses
                 )
@@ -358,8 +376,8 @@ def main():
     )
     parser.add_argument(
         #To add an autoencoder, append its name here and preprocessing later
-        '--ae_networks', type=str, choices=['FourLayerCVAE'],
-        default=['FourLayerCVAE'], nargs='+',
+        '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
+        choices=['FourLayerCVAE', 'PerceptualEmbedder'],
         help='The different autoencoder networks to use'
     )
     parser.add_argument(
@@ -447,6 +465,8 @@ def main():
     for network in args.ae_networks:
         if network == 'FourLayerCVAE':
             networks.append(FourLayerCVAE)
+        elif network == 'PerceptualEmbedder':
+            networks.append(PerceptualEmbedder)
         else:
             raise ValueError(
                 f'{network} does not match any known autoencoder'

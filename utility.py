@@ -74,7 +74,7 @@ def run_training(model, train_loader, val_loader, loss,
         epochs (int): Number of epochs to train for
         epoch_update (f(epoch, train_loss, val_loss) -> bool): Function to run
             at the end of a epoch. Returns whether to early stop
-    Returns (nn.Module, str, float): The model, filepath, and validation loss
+    Returns (nn.Module, str, float, int): The model, path, val loss, and epochs
     '''
     save_file = (
         model. __class__.__name__ + 
@@ -113,7 +113,7 @@ def run_training(model, train_loader, val_loader, loss,
                 break
 
     model = torch.load(save_file)
-    return model, save_file, best_validation_loss
+    return model, save_file, best_validation_loss, epoch
 
 class EarlyStopper():
     '''
