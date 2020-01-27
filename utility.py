@@ -49,7 +49,7 @@ def run_epoch(model, dataloader, loss, optimizer,
         if train:
             optimizer.step()
         print(
-            '\r{} - [{}/{}] - Losses: {}, Time passed: {}s'.format(
+            '\r{} - [{}/{}] - Losses: {}, Time elapsed: {}s'.format(
                 epoch_name, batch_id+1, len(dataloader),
                 ', '.join(
                     ['{0:.5f}'.format(l/(batch_id+1)) for l in epoch_losses]
@@ -100,7 +100,7 @@ def run_training(model, train_loader, val_loader, loss,
             f'\rEpoch {epoch} - '
             f'Train loss {training_losses[0]:.5f} - '
             f'Validation loss {validation_losses[0]:.5f}',
-            ' '*32
+            ' '*35
         )
 
         if validation_losses[0] < best_validation_loss:

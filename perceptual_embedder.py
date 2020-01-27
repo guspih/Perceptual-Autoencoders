@@ -42,7 +42,8 @@ class PerceptualEmbedder(nn.Module):
         self.gamma = gamma
         self.perceptual_net = perceptual_net
         
-        out = self.perceptual_net(torch.rand((1,3,input_size[0],input_size[1])))
+        inp = torch.rand((1,3,input_size[0],input_size[1]))
+        out = self.perceptual_net(inp.to(next(perceptual_net.parameters()).device))
         self.perceptual_size = out.numel()
         self.perceptual_loss = True
 
@@ -69,10 +70,6 @@ class PerceptualEmbedder(nn.Module):
             nn.ReLU(),
             nn.Linear(int(self.perceptual_size/2), self.perceptual_size)
         )
-        
-        self.dense = nn.Linear(self.z_dimensions, deconv_flat_size)
-
-        self.relu = nn.ReLU()
 
     def __str__(self):
         string = super().__str__()[:-1]
@@ -93,7 +90,6 @@ class PerceptualEmbedder(nn.Module):
         x = x.view(x.size(0),-1)
         mu = self.mu(x)
         logvar = self.logvar(x)
-
         return mu, logvar
 
     def sample(self, mu, logvar):
@@ -118,6 +114,112 @@ class PerceptualEmbedder(nn.Module):
         rec_y, z, mu, logvar = output
         
         y = self.perceptual_net(x)
+        REC = F.mse_loss(rec_y, y, reduction='mean')
+
+        if self.variational:
+            KLD = -1 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+            return REC + self.gamma*KLD, REC, KLD
+        else:
+            return [REC]
+
+class PerceptualPreEmbedder(nn.Module):
+    '''
+    An fc autoencoder that encodes the features of a perceptual network
+    Args:
+        input_size (int,int): The height and width of the input image
+            acceptable sizes are 64+16*n
+        z_dimensions (int): The number of latent dimensions in the encoding
+        variational (bool): Whether the model is variational or not
+        gamma (float): The weight of the KLD loss
+        perceptual_net: Which perceptual network to use
+    '''
+
+    def __init__(self, input_size=(64,64), z_dimensions=32,
+        variational=True, gamma=20.0, perceptual_net=None
+    ):
+        super().__init__()
+
+        #Parameter check
+        if (input_size[0] - 64) % 16 != 0 or (input_size[1] - 64) % 16 != 0:
+            raise ValueError(
+                f'Input_size is {input_size}, but must be 64+16*N'
+            )
+        assert perceptual_net != None, \
+            'For PerceptualEmbedder, perceptual_net cannot be None'
+
+        #Attributes
+        self.input_size = input_size
+        self.z_dimensions = z_dimensions
+        self.variational = variational
+        self.gamma = gamma
+        self.perceptual_net = perceptual_net
+        
+        inp = torch.rand((1,3,input_size[0],input_size[1]))
+        out = self.perceptual_net(inp.to(next(perceptual_net.parameters()).device))
+        self.perceptual_size = out.numel()
+        self.perceptual_loss = True
+
+        self.encoder = nn.Sequential(
+            nn.Linear(self.perceptual_size, int(self.perceptual_size/2)),
+            nn.ReLU(),
+            nn.Linear(int(self.perceptual_size/2), 1024),
+            nn.ReLU()
+        )
+
+        self.mu = nn.Linear(1024, self.z_dimensions)
+        self.logvar = nn.Linear(1024, self.z_dimensions)
+
+        self.decoder = nn.Sequential(
+            nn.Linear(self.z_dimensions, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, int(self.perceptual_size/2)),
+            nn.ReLU(),
+            nn.Linear(int(self.perceptual_size/2), self.perceptual_size)
+        )
+
+    def __str__(self):
+        string = super().__str__()[:-1]
+        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
+                self.variational,self.gamma
+            )
+        return string
+
+    def __repr__(self):
+        string = super().__repr__()[:-1]
+        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
+                self.variational,self.gamma
+            )
+        return string
+
+    def encode(self, x):
+        x = self.encoder(x)
+        mu = self.mu(x)
+        logvar = self.logvar(x)
+        return mu, logvar
+
+    def sample(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        eps = torch.autograd.Variable(std.data.new(std.size()).normal_())
+        out = eps.mul(std).add_(mu)
+        return out
+
+    def decode(self, z):
+        return self.decoder(z)
+    
+    def forward(self, x):
+        y = self.perceptual_net(x)
+        y = y.view(y.size(0),-1)
+        mu, logvar = self.encode(y)
+        if self.variational:
+            z = self.sample(mu, logvar)
+        else:
+            z = mu
+        rec_y = self.decode(z)
+        return rec_y, y, z, mu, logvar
+
+    def loss(self, output, x):
+        rec_y, y, z, mu, logvar = output
+        
         REC = F.mse_loss(rec_y, y, reduction='mean')
 
         if self.variational:

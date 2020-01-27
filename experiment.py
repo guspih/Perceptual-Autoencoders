@@ -18,7 +18,7 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
-from perceptual_embedder import PerceptualEmbedder
+from perceptual_embedder import PerceptualEmbedder, PerceptualPreEmbedder
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -377,7 +377,9 @@ def main():
     parser.add_argument(
         #To add an autoencoder, append its name here and preprocessing later
         '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
-        choices=['FourLayerCVAE', 'PerceptualEmbedder'],
+        choices=[
+            'FourLayerCVAE', 'PerceptualEmbedder', 'PerceptualPreEmbedder'
+        ],
         help='The different autoencoder networks to use'
     )
     parser.add_argument(
@@ -467,6 +469,8 @@ def main():
             networks.append(FourLayerCVAE)
         elif network == 'PerceptualEmbedder':
             networks.append(PerceptualEmbedder)
+        elif network == 'PerceptualPreEmbedder':
+            networks.append(PerceptualPreEmbedder)
         else:
             raise ValueError(
                 f'{network} does not match any known autoencoder'
