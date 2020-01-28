@@ -192,9 +192,11 @@ class PerceptualPreEmbedder(nn.Module):
         return string
 
     def encode(self, x):
-        x = self.encoder(x)
-        mu = self.mu(x)
-        logvar = self.logvar(x)
+        y = self.perceptual_net(x)
+        y = y.view(y.size(0),-1)
+        y = self.encoder(y)
+        mu = self.mu(y)
+        logvar = self.logvar(y)
         return mu, logvar
 
     def sample(self, mu, logvar):
@@ -207,19 +209,20 @@ class PerceptualPreEmbedder(nn.Module):
         return self.decoder(z)
     
     def forward(self, x):
-        y = self.perceptual_net(x)
-        y = y.view(y.size(0),-1)
-        mu, logvar = self.encode(y)
+        mu, logvar = self.encode(x)
         if self.variational:
             z = self.sample(mu, logvar)
         else:
             z = mu
         rec_y = self.decode(z)
-        return rec_y, y, z, mu, logvar
+        return rec_y, z, mu, logvar
 
     def loss(self, output, x):
-        rec_y, y, z, mu, logvar = output
+        rec_y, z, mu, logvar = output
         
+        y = self.perceptual_net(x)
+        y = y.view(y.size(0),-1)
+
         REC = F.mse_loss(rec_y, y, reduction='mean')
 
         if self.variational:
