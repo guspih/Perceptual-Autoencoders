@@ -18,7 +18,7 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
-from perceptual_embedder import PerceptualEmbedder, PerceptualPreEmbedder
+from perceptual_embedder import PerceptualEmbedder, PerceptualPreEmbedder, PerceptualReconstructer
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -93,7 +93,13 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             already_trained = False
             with open(index_file, 'r') as index:
                 index_reader = csv.reader(index, delimiter='\t')
-                field_names = next(index_reader)
+                try:
+                    field_names = next(index_reader)
+                except StopIteration:
+                    raise RuntimeError(
+                        f'Header is missing in {index_file} '
+                        f'Delete the file and run again'
+                    )
                 for row in index_reader:
                     if list(row[1:-3]) == parameters:
                         already_trained = True
@@ -237,7 +243,13 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
     autoencoders = []
     with open(autoencoder_index, 'r') as index:
         index_reader = csv.reader(index, delimiter='\t')
-        field_names = next(index_reader)
+        try:
+            field_names = next(index_reader)
+        except StopIteration:
+            raise RuntimeError(
+                f'Header is missing in {autoencoder_index} '
+                f'Delete the file and run again'
+            )
         for row in index_reader:
             if row[1] != dataset_name or row[2] != str(image_size):
                 continue
@@ -378,7 +390,8 @@ def main():
         #To add an autoencoder, append its name here and preprocessing later
         '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
         choices=[
-            'FourLayerCVAE', 'PerceptualEmbedder', 'PerceptualPreEmbedder'
+            'FourLayerCVAE', 'PerceptualEmbedder', 'PerceptualPreEmbedder',
+            'PerceptualReconstructer'
         ],
         help='The different autoencoder networks to use'
     )
@@ -471,6 +484,8 @@ def main():
             networks.append(PerceptualEmbedder)
         elif network == 'PerceptualPreEmbedder':
             networks.append(PerceptualPreEmbedder)
+        elif network == 'PerceptualReconstructer':
+            networks.append(PerceptualReconstructer)
         else:
             raise ValueError(
                 f'{network} does not match any known autoencoder'

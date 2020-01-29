@@ -63,7 +63,73 @@ def _create_coder(channels, kernel_sizes, strides, conv_types,
 
     return coder
 
-class FourLayerCVAE(nn.Module):
+class TemplateVAE(nn.Module):
+    '''
+    A template class for Variational Autoencoders to minimize code duplication
+    Args:
+        input_size (int,int): The height and width of the input image
+        z_dimensions (int): The number of latent dimensions in the encoding
+        variational (bool): Whether the model is variational or not
+        gamma (float): The weight of the KLD loss
+        perceptual_net: Which perceptual network to use (None for pixel-wise)
+    '''
+    
+    def __str__(self):
+        string = super().__str__()[:-1]
+        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
+                self.variational,self.gamma
+            )
+        return string
+
+    def __repr__(self):
+        string = super().__repr__()[:-1]
+        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
+                self.variational,self.gamma
+            )
+        return string
+    
+    def encode(self, x):
+        x = self.encoder(x)
+        x = x.view(x.size(0),-1)
+        mu = self.mu(x)
+        logvar = self.logvar(x)
+        return mu, logvar
+
+    def sample(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        eps = torch.autograd.Variable(std.data.new(std.size()).normal_())
+        out = eps.mul(std).add_(mu)
+        return out
+
+    def decode(self, z):
+        return self.decoder(z)
+    
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        if self.variational:
+            z = self.sample(mu, logvar)
+        else:
+            z = mu
+        rec_x = self.decode(z)
+        return rec_x, z, mu, logvar
+
+    def loss(self, output, x):
+        rec_x, z, mu, logvar = output
+        if self.perceptual_loss:
+            x = self.perceptual_net(x)
+            rec_x = self.perceptual_net(rec_x)
+        else:
+            x = x.reshape(x.size(0), -1)
+            rec_x = rec_x.view(x.size(0), -1)
+        REC = F.mse_loss(rec_x, x, reduction='mean')
+
+        if self.variational:
+            KLD = -1 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+            return REC + self.gamma*KLD, REC, KLD
+        else:
+            return [REC]
+
+class FourLayerCVAE(TemplateVAE):
     '''
     A Convolutional Variational Autoencoder for images
     Args:
@@ -121,34 +187,6 @@ class FourLayerCVAE(nn.Module):
 
         self.relu = nn.ReLU()
 
-    def __str__(self):
-        string = super().__str__()[:-1]
-        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
-                self.variational,self.gamma
-            )
-        return string
-
-    def __repr__(self):
-        string = super().__repr__()[:-1]
-        string = string + '  (variational): {}\n  (gamma): {}\n)'.format(
-                self.variational,self.gamma
-            )
-        return string
-
-    def encode(self, x):
-        x = self.encoder(x)
-        x = x.view(x.size(0),-1)
-        mu = self.mu(x)
-        logvar = self.logvar(x)
-
-        return mu, logvar
-
-    def sample(self, mu, logvar):
-        std = logvar.mul(0.5).exp_()
-        eps = torch.autograd.Variable(std.data.new(std.size()).normal_())
-        out = eps.mul(std).add_(mu)
-        return out
-
     def decode(self, z):
         y = self.dense(z)
         y = self.relu(y)
@@ -159,31 +197,6 @@ class FourLayerCVAE(nn.Module):
         )
         y = self.decoder(y)
         return y
-    
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        if self.variational:
-            z = self.sample(mu, logvar)
-        else:
-            z = mu
-        x_rec = self.decode(z)
-        return x_rec, z, mu, logvar
-
-    def loss(self, output, x):
-        rec_x, z, mu, logvar = output
-        if self.perceptual_loss:
-            x = self.perceptual_net(x)
-            rec_x = self.perceptual_net(rec_x)
-        else:
-            x = x.reshape(-1, self.input_size[0] * self.input_size[1] * 3)
-            rec_x = rec_x.view(-1, self.input_size[0] * self.input_size[1] * 3)
-        REC = F.mse_loss(rec_x, x, reduction='mean')
-
-        if self.variational:
-            KLD = -1 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-            return REC + self.gamma*KLD, REC, KLD
-        else:
-            return [REC]
 
 def show(imgs, block=False, save=None, heading='Figure', fig_axs=None, torchy=True):
     '''
