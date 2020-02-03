@@ -216,7 +216,7 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'hidden_function',
                 'out_function',
                 'predictor_epochs',
-                'predictor_actual_epochs'
+                'predictor_actual_epochs',
                 'predictor_train_time',
                 'predictor_test_time',
                 'validation_MSE',
