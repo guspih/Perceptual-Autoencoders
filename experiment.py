@@ -456,13 +456,13 @@ def main():
     # Load autoencoder dataset, add code here to add new datasets
     print('Loading data for autoencoder training...')
     if args.data == 'lunarlander':
-        #raise NotImplementedError(
-        #    'Use gym_datagenerator.py to generate data '
-        #    'then uncomment and add file names below'
-        #)
-        data, _ = load_lunarlander_data(
-            './datasets/LunarLander-v2/LunarLander-v2_105000_autoencoder.pickle'
+        raise NotImplementedError(
+            'Use gym_datagenerator.py to generate data '
+            'then uncomment and add file names below'
         )
+        #data, _ = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>'
+        #)
     elif args.data == 'stl10':
         data, _ = load_stl_data('./datasets/stl10/unlabeled_X.bin')
     elif args.data == 'svhn':
@@ -522,18 +522,18 @@ def main():
     # Load the predictor training and testing data, code here to add dataset
     print('Loading data for predictor training and testing...')
     if args.data == 'lunarlander':
-        #raise NotImplementedError(
-        #    'Use gym_datagenerator.py to generate data '
-        #    'then uncomment and add file names below'
+        raise NotImplementedError(
+            'Use gym_datagenerator.py to generate data '
+            'then uncomment and add file names below'
+        )
+        #data, labels = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>',
+        #    keep_off_screen=False
         #)
-        data, labels = load_lunarlander_data(
-            './datasets/LunarLander-v2/LunarLander-v2_105000_predictor.pickle',
-            keep_off_screen=False
-        )
-        test_data, test_labels = load_lunarlander_data(
-            './datasets/LunarLander-v2/LunarLander-v2_105000_predictor.pickle',
-            keep_off_screen=False
-        )
+        #test_data, test_labels = load_lunarlander_data(
+        #    './datasets/LunarLander-v2/<name_of_file>',
+        #    keep_off_screen=False
+        #)
     elif args.data == 'stl10':
         data, labels = load_stl_data(
             './datasets/stl10/train_X.bin',
