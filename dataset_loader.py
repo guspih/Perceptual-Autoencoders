@@ -73,18 +73,28 @@ def load_pickled_gym_data(path_to_data, val_split=0.2):
         data[key] = train, valid
     return data
 
-def load_lunarlander_data(path_to_data):
+def load_lunarlander_data(path_to_data, keep_off_screen=True):
     '''
     Takes pickled gym LunarLander-v2 data and prepares it for pytorch use
     Args:
         path_to_data (str): Path to the .pickle file with data
+        keep_off_screen (bool): Whether to keep images with lander off-screen
     Returns (tensor, tensor): The images and corresponing lander positions
     '''
     
-    data, _ = load_pickled_gym_data(path_to_data, 0)
-    images = data['imgs'].float()
-    labels = data['observations']
+    data = load_pickled_gym_data(path_to_data, 0)
+    images = data['imgs'][0].float()
+    labels = data['observations'][0]
     labels = labels.narrow(1,0,2).float()
+    if not keep_off_screen:
+        #Remove data where the lander is off screen (-1<=x<=1 & -0.5<=y<=1.5)
+        condition = (
+            (labels[:,0]<=1) & (labels[:,0]>=-1) &
+            (labels[:,1]<=1.5) & (labels[:,1]>=-0.5)
+        )
+        labels = labels[condition, :]
+        images = images[condition, :]
+        print(labels.size())
     return images, labels
 
 def load_svhn_data(path_to_data):

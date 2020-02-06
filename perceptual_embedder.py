@@ -43,7 +43,9 @@ class PerceptualEmbedder(TemplateVAE):
         self.perceptual_net = perceptual_net
         
         inp = torch.rand((1,3,input_size[0],input_size[1]))
-        out = self.perceptual_net(inp.to(next(perceptual_net.parameters()).device))
+        out = self.perceptual_net(
+            inp.to(next(perceptual_net.parameters()).device)
+        )
         self.perceptual_size = out.numel()
         self.perceptual_loss = True
 
@@ -63,12 +65,13 @@ class PerceptualEmbedder(TemplateVAE):
         g = lambda x: int((x-64)/16)+1
         deconv_flat_size = g(input_size[0]) * g(input_size[1]) * 1024
         
+        hidden_layer_size = int(min(self.perceptual_size/2, 2048))
         self.decoder = nn.Sequential(
             nn.Linear(self.z_dimensions, deconv_flat_size),
             nn.ReLU(),
-            nn.Linear(deconv_flat_size, int(self.perceptual_size/2)),
+            nn.Linear(deconv_flat_size, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(int(self.perceptual_size/2), self.perceptual_size)
+            nn.Linear(hidden_layer_size, self.perceptual_size)
         )
 
     def loss(self, output, x):
@@ -116,14 +119,18 @@ class PerceptualPreEmbedder(TemplateVAE):
         self.perceptual_net = perceptual_net
         
         inp = torch.rand((1,3,input_size[0],input_size[1]))
-        out = self.perceptual_net(inp.to(next(perceptual_net.parameters()).device))
+        out = self.perceptual_net(
+            inp.to(next(perceptual_net.parameters()).device)
+        )
         self.perceptual_size = out.numel()
         self.perceptual_loss = True
 
+        hidden_layer_size = int(min(self.perceptual_size/2, 2048))
+
         self.encoder = nn.Sequential(
-            nn.Linear(self.perceptual_size, int(self.perceptual_size/2)),
+            nn.Linear(self.perceptual_size, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(int(self.perceptual_size/2), 1024),
+            nn.Linear(hidden_layer_size, 1024),
             nn.ReLU()
         )
 
@@ -133,9 +140,9 @@ class PerceptualPreEmbedder(TemplateVAE):
         self.decoder = nn.Sequential(
             nn.Linear(self.z_dimensions, 1024),
             nn.ReLU(),
-            nn.Linear(1024, int(self.perceptual_size/2)),
+            nn.Linear(1024, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(int(self.perceptual_size/2), self.perceptual_size)
+            nn.Linear(hidden_layer_size, self.perceptual_size)
         )
 
     def encode(self, x):
@@ -193,14 +200,18 @@ class PerceptualReconstructer(TemplateVAE):
         self.perceptual_net = perceptual_net
 
         inp = torch.rand((1,3,input_size[0],input_size[1]))
-        out = self.perceptual_net(inp.to(next(perceptual_net.parameters()).device))
+        out = self.perceptual_net(
+            inp.to(next(perceptual_net.parameters()).device)
+        )
         self.perceptual_size = out.numel()
         self.perceptual_loss = True
 
+        hidden_layer_size = int(min(self.perceptual_size/2, 2048))
+
         self.encoder = nn.Sequential(
-            nn.Linear(self.perceptual_size, int(self.perceptual_size/2)),
+            nn.Linear(self.perceptual_size, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(int(self.perceptual_size/2), 1024),
+            nn.Linear(hidden_layer_size, 1024),
             nn.ReLU()
         )
         
