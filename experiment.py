@@ -219,11 +219,11 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'predictor_actual_epochs',
                 'predictor_train_time',
                 'predictor_test_time',
-                'validation_MSE',
-                'test_MSE',
-                'Mean_L1_distance',
-                'Mean_L2_distance',
-                'Accuracy'
+                'validation_mse',
+                'test_mse',
+                'mean_l1_distance',
+                'mean_l2_distance',
+                'accuracy'
             ])
 
     # Setup variables and losses that is used by all tests
