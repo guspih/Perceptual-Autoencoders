@@ -67,9 +67,7 @@ class PerceptualEmbedder(TemplateVAE):
         
         hidden_layer_size = int(min(self.perceptual_size/2, 2048))
         self.decoder = nn.Sequential(
-            nn.Linear(self.z_dimensions, deconv_flat_size),
-            nn.ReLU(),
-            nn.Linear(deconv_flat_size, hidden_layer_size),
+            nn.Linear(self.z_dimensions, hidden_layer_size),
             nn.ReLU(),
             nn.Linear(hidden_layer_size, self.perceptual_size)
         )
@@ -130,17 +128,13 @@ class PerceptualPreEmbedder(TemplateVAE):
         self.encoder = nn.Sequential(
             nn.Linear(self.perceptual_size, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(hidden_layer_size, 1024),
-            nn.ReLU()
         )
 
-        self.mu = nn.Linear(1024, self.z_dimensions)
-        self.logvar = nn.Linear(1024, self.z_dimensions)
+        self.mu = nn.Linear(hidden_layer_size, self.z_dimensions)
+        self.logvar = nn.Linear(hidden_layer_size, self.z_dimensions)
 
         self.decoder = nn.Sequential(
-            nn.Linear(self.z_dimensions, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, hidden_layer_size),
+            nn.Linear(self.z_dimensions, hidden_layer_size),
             nn.ReLU(),
             nn.Linear(hidden_layer_size, self.perceptual_size)
         )
@@ -170,13 +164,14 @@ class PerceptualPreEmbedder(TemplateVAE):
 class PerceptualReconstructer(TemplateVAE):
     '''
     A CVAE that encodes perceptual features and reconstructs the images
+    Trained with perceptual loss
     Args:
         input_size (int,int): The height and width of the input image
             acceptable sizes are 64+16*n
         z_dimensions (int): The number of latent dimensions in the encoding
         variational (bool): Whether the model is variational or not
         gamma (float): The weight of the KLD loss
-        perceptual_net: Which perceptual network to use (None for pixel-wise)
+        perceptual_net: Which feature extraction and perceptual net to use
     '''
 
     def __init__(self, input_size=(64,64), z_dimensions=32,
@@ -211,12 +206,10 @@ class PerceptualReconstructer(TemplateVAE):
         self.encoder = nn.Sequential(
             nn.Linear(self.perceptual_size, hidden_layer_size),
             nn.ReLU(),
-            nn.Linear(hidden_layer_size, 1024),
-            nn.ReLU()
         )
         
-        self.mu = nn.Linear(1024, self.z_dimensions)
-        self.logvar = nn.Linear(1024, self.z_dimensions)
+        self.mu = nn.Linear(hidden_layer_size, self.z_dimensions)
+        self.logvar = nn.Linear(hidden_layer_size, self.z_dimensions)
 
         g = lambda x: int((x-64)/16)+1
         deconv_flat_size = g(input_size[0]) * g(input_size[1]) * 1024
@@ -249,3 +242,29 @@ class PerceptualReconstructer(TemplateVAE):
         )
         y = self.decoder(y)
         return y
+
+class PerceptualPixelReconstructer(PerceptualReconstructer):
+    '''
+    A CVAE that encodes perceptual features and reconstructs the images
+    Trained with pixel-wise loss
+    Args:
+        input_size (int,int): The height and width of the input image
+            acceptable sizes are 64+16*n
+        z_dimensions (int): The number of latent dimensions in the encoding
+        variational (bool): Whether the model is variational or not
+        gamma (float): The weight of the KLD loss
+        perceptual_net: Which feature extraction net to use
+    '''
+
+    def loss(self, output, x):
+        rec_x, z, mu, logvar = output
+
+        x = x.reshape(x.size(0), -1)
+        rec_x = rec_x.view(x.size(0), -1)
+        REC = F.mse_loss(rec_x, x, reduction='mean')
+
+        if self.variational:
+            KLD = -1 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+            return REC + self.gamma*KLD, REC, KLD
+        else:
+            return [REC]
