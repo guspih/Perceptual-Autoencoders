@@ -94,7 +94,6 @@ def load_lunarlander_data(path_to_data, keep_off_screen=True):
         )
         labels = labels[condition, :]
         images = images[condition, :]
-        print(labels.size())
     return images, labels
 
 def load_svhn_data(path_to_data):

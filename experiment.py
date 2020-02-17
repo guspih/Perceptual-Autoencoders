@@ -274,23 +274,11 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
     # For all autoencoders run the test with all predictors
     for autoencoder_parameters in autoencoders:
         autoencoder_path = autoencoder_parameters[0]
+        encoding_size = int(autoencoder_parameters[5])
         autoencoder = torch.load(autoencoder_path, map_location='cpu')
-        
-        # Encode and prepare the data
-        print(f'Encoding data with autoencoder at {autoencoder_path}...')
-        train_encoded = encode_data(autoencoder,train_data[0],batch_size)
-        train_dataset = TensorDataset(train_encoded, train_data[1])
-        train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
-        
-        val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
-        val_dataset = TensorDataset(val_encoded, validation_data[1])
-        val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
-        
-        test_encoded = encode_data(autoencoder,test_data[0],batch_size)
-        test_dataset = TensorDataset(test_encoded, test_data[1])
-        test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
 
-        encoding_size = train_encoded.size(-1)
+        # Encode and prepare the data only once for each AE
+        ae_encoded = False
 
         # Train and test all predictors on the given data
         for architecture, hidden_func, out_func in product(
@@ -334,6 +322,20 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
             
             # Train as many predictors as are missing for this parameter setting
             for _ in range(predictor_repetitions-already_tested):
+
+                # If it's the first iteration with this AE, prepare the data
+                print(f'Encoding data with autoencoder at {autoencoder_path}...')
+                train_encoded = encode_data(autoencoder,train_data[0],batch_size)
+                train_dataset = TensorDataset(train_encoded, train_data[1])
+                train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
+                
+                val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
+                val_dataset = TensorDataset(val_encoded, validation_data[1])
+                val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
+                
+                test_encoded = encode_data(autoencoder,test_data[0],batch_size)
+                test_dataset = TensorDataset(test_encoded, test_data[1])
+                test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
 
                 # Train the predictor and meassure the time it takes
                 early_stop = EarlyStopper(patience=max(10, epochs/20))
