@@ -18,7 +18,7 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
-from perceptual_embedder import PerceptualPredictorCVAE, FeatureAutoencoder, \
+from perceptual_embedder import FeaturePredictorCVAE, FeatureAutoencoder, \
     PerceptualFeatureToImgCVAE, FeatureToImgCVAE
 
 # Dataset imports
@@ -406,7 +406,7 @@ def main():
         #To add an autoencoder, append its name here and preprocessing later
         '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
         choices=[
-            'FourLayerCVAE', 'PerceptualPredictorCVAE', 'FeatureAutoencoder',
+            'FourLayerCVAE', 'FeaturePredictorCVAE', 'FeatureAutoencoder',
             'PerceptualFeatureToImgCVAE', 'FeatureToImgCVAE'
         ],
         help='The different autoencoder networks to use'
@@ -496,8 +496,8 @@ def main():
     for network in args.ae_networks:
         if network == 'FourLayerCVAE':
             networks.append(FourLayerCVAE)
-        elif network == 'PerceptualPredictorCVAE':
-            networks.append(PerceptualPredictorCVAE)
+        elif network == 'FeaturePredictorCVAE':
+            networks.append(FeaturePredictorCVAE)
         elif network == 'FeatureAutoencoder':
             networks.append(FeatureAutoencoder)
         elif network == 'PerceptualFeatureToImgCVAE':
