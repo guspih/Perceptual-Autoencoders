@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 from utility import run_training, EarlyStopper
 from VAE import _create_coder, TemplateVAE
 
-class PerceptualPredictor(TemplateVAE):
+class PerceptualPredictorCVAE(TemplateVAE):
     '''
-    A Convolutional Variational Embedder for images trained to recreate embeddings
+    A Convolutional Variational autoencoder trained with feature prediction
     Args:
         input_size (int,int): The height and width of the input image
             acceptable sizes are 64+16*n
@@ -33,7 +33,7 @@ class PerceptualPredictor(TemplateVAE):
                 f'Input_size is {input_size}, but must be 64+16*N'
             )
         assert perceptual_net != None, \
-            'For PerceptualPredictor, perceptual_net cannot be None'
+            'For PerceptualPredictorCVAE, perceptual_net cannot be None'
 
         #Attributes
         self.input_size = input_size
@@ -86,7 +86,7 @@ class PerceptualPredictor(TemplateVAE):
 
 class FeatureAutoencoder(TemplateVAE):
     '''
-    An fc autoencoder that encodes the features of a perceptual network
+    An fc autoencoder that autoencodes the features of a perceptual network
     Args:
         input_size (int,int): The height and width of the input image
             acceptable sizes are 64+16*n
