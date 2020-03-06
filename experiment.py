@@ -18,8 +18,8 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
-from perceptual_embedder import PerceptualEmbedder, PerceptualPreEmbedder, \
-    PerceptualReconstructer, PerceptualPixelReconstructer
+from perceptual_embedder import PerceptualPredictor, FeatureAutoencoder, \
+    PerceptualFeatureToImgCVAE, FeatureToImgCVAE
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -325,22 +325,27 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
 
                 # If it's the first iteration with this AE, prepare the data
                 print(f'Encoding data with autoencoder at {autoencoder_path}...')
-                train_encoded = encode_data(autoencoder,train_data[0],batch_size)
-                train_dataset = TensorDataset(train_encoded, train_data[1])
-                train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
-                
-                val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
-                val_dataset = TensorDataset(val_encoded, validation_data[1])
-                val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
-                
-                test_encoded = encode_data(autoencoder,test_data[0],batch_size)
-                test_dataset = TensorDataset(test_encoded, test_data[1])
-                test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
+                if not ae_encoded:
+                    train_encoded = encode_data(autoencoder,train_data[0],batch_size)
+                    train_dataset = TensorDataset(train_encoded, train_data[1])
+                    train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
+                    
+                    val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
+                    val_dataset = TensorDataset(val_encoded, validation_data[1])
+                    val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
+                    
+                    test_encoded = encode_data(autoencoder,test_data[0],batch_size)
+                    test_dataset = TensorDataset(test_encoded, test_data[1])
+                    test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
+                    
+                    ae_encoded = True
 
                 # Train the predictor and meassure the time it takes
                 early_stop = EarlyStopper(patience=max(10, epochs/20))
                 timestamp = time.process_time()
-                predictor, predictor_path, validation_loss, actual_epochs = run_training(
+                (
+                    predictor, predictor_path, validation_loss, actual_epochs
+                ) = run_training(
                     predictor, train_loader, val_loader, losses,
                     optimizer, 'checkpoints', epochs, epoch_update=early_stop
                 )
@@ -398,8 +403,8 @@ def main():
         #To add an autoencoder, append its name here and preprocessing later
         '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
         choices=[
-            'FourLayerCVAE', 'PerceptualEmbedder', 'PerceptualPreEmbedder',
-            'PerceptualReconstructer', 'PerceptualPixelReconstructer'
+            'FourLayerCVAE', 'PerceptualPredictor', 'FeatureAutoencoder',
+            'PerceptualFeatureToImgCVAE', 'FeatureToImgCVAE'
         ],
         help='The different autoencoder networks to use'
     )
@@ -488,14 +493,14 @@ def main():
     for network in args.ae_networks:
         if network == 'FourLayerCVAE':
             networks.append(FourLayerCVAE)
-        elif network == 'PerceptualEmbedder':
-            networks.append(PerceptualEmbedder)
-        elif network == 'PerceptualPreEmbedder':
-            networks.append(PerceptualPreEmbedder)
-        elif network == 'PerceptualReconstructer':
-            networks.append(PerceptualReconstructer)
-        elif network == 'PerceptualPixelReconstructer':
-            networks.append(PerceptualPixelReconstructer)
+        elif network == 'PerceptualPredictor':
+            networks.append(PerceptualPredictor)
+        elif network == 'FeatureAutoencoder':
+            networks.append(FeatureAutoencoder)
+        elif network == 'PerceptualFeatureToImgCVAE':
+            networks.append(PerceptualFeatureToImgCVAE)
+        elif network == 'FeatureToImgCVAE':
+            networks.append(FeatureToImgCVAE)
         else:
             raise ValueError(
                 f'{network} does not match any known autoencoder'

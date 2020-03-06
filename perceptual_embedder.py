@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from utility import run_training, EarlyStopper
 from VAE import _create_coder, TemplateVAE
 
-class PerceptualEmbedder(TemplateVAE):
+class PerceptualPredictor(TemplateVAE):
     '''
     A Convolutional Variational Embedder for images trained to recreate embeddings
     Args:
@@ -33,7 +33,7 @@ class PerceptualEmbedder(TemplateVAE):
                 f'Input_size is {input_size}, but must be 64+16*N'
             )
         assert perceptual_net != None, \
-            'For PerceptualEmbedder, perceptual_net cannot be None'
+            'For PerceptualPredictor, perceptual_net cannot be None'
 
         #Attributes
         self.input_size = input_size
@@ -84,7 +84,7 @@ class PerceptualEmbedder(TemplateVAE):
         else:
             return [REC]
 
-class PerceptualPreEmbedder(TemplateVAE):
+class FeatureAutoencoder(TemplateVAE):
     '''
     An fc autoencoder that encodes the features of a perceptual network
     Args:
@@ -107,7 +107,7 @@ class PerceptualPreEmbedder(TemplateVAE):
                 f'Input_size is {input_size}, but must be 64+16*N'
             )
         assert perceptual_net != None, \
-            'For PerceptualPreEmbedder, perceptual_net cannot be None'
+            'For FeatureAutoencoder, perceptual_net cannot be None'
 
         #Attributes
         self.input_size = input_size
@@ -161,7 +161,7 @@ class PerceptualPreEmbedder(TemplateVAE):
         else:
             return [REC]
 
-class PerceptualReconstructer(TemplateVAE):
+class PerceptualFeatureToImgCVAE(TemplateVAE):
     '''
     A CVAE that encodes perceptual features and reconstructs the images
     Trained with perceptual loss
@@ -185,7 +185,7 @@ class PerceptualReconstructer(TemplateVAE):
                 f'Input_size is {input_size}, but must be 64+16*N'
             )
         assert perceptual_net != None, \
-            'For PerceptualReconstructer, perceptual_net cannot be None'
+            'For PerceptualFeatureToImgCVAE, perceptual_net cannot be None'
 
         #Attributes
         self.input_size = input_size
@@ -243,7 +243,7 @@ class PerceptualReconstructer(TemplateVAE):
         y = self.decoder(y)
         return y
 
-class PerceptualPixelReconstructer(PerceptualReconstructer):
+class FeatureToImgCVAE(PerceptualFeatureToImgCVAE):
     '''
     A CVAE that encodes perceptual features and reconstructs the images
     Trained with pixel-wise loss

@@ -34,7 +34,9 @@ def split_data(datas, split_sizes=[0.8, 0.2]):
     splits = []
     split_sizes = [split_size/sum(split_sizes) for split_size in split_sizes]
     for split_size in split_sizes:
-        end_index = min(int(datas[0].size(0)*split_size)+start_index, datas[0].size(0))
+        end_index = min(
+            int(datas[0].size(0)*split_size)+start_index, datas[0].size(0)
+        )
         splits.append(
             [data[start_index:end_index] for data in datas]
         )
