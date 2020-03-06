@@ -85,6 +85,7 @@ def run_training(model, train_loader, val_loader, loss,
 
     torch_model_save(model, save_file)
     best_validation_loss = float('inf')
+    best_epoch = 0
     for epoch in range(1,epochs+1):
         training_losses = run_epoch(
             model, train_loader, loss, optimizer,
@@ -106,6 +107,7 @@ def run_training(model, train_loader, val_loader, loss,
         if validation_losses[0] < best_validation_loss:
             torch_model_save(model, save_file)
             best_validation_loss = validation_losses[0]
+            best_epoch = epoch
         
         if not epoch_update is None:
             early_stop = epoch_update(epoch, training_losses, validation_losses)
@@ -113,7 +115,7 @@ def run_training(model, train_loader, val_loader, loss,
                 break
 
     model = torch.load(save_file)
-    return model, save_file, best_validation_loss, epoch
+    return model, save_file, best_validation_loss, best_epoch
 
 class EarlyStopper():
     '''
