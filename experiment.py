@@ -7,6 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import random
 import math
 import datetime
+import time
 import argparse
 import os
 import csv
@@ -17,6 +18,8 @@ from itertools import combinations_with_replacement, product
 from utility import run_training, run_epoch, fc_net, EarlyStopper
 from VAE import FourLayerCVAE, train_autoencoder, encode_data
 from perceptual_networks import SimpleExtractor, architecture_features
+from perceptual_embedder import PerceptualPredictorCVAE, FeatureAutoencoder, \
+    PerceptualFeatureToImgCVAE, FeatureToImgCVAE
 
 # Dataset imports
 from dataset_loader import split_data, load_lunarlander_data, \
@@ -26,7 +29,7 @@ from dataset_loader import split_data, load_lunarlander_data, \
 def generate_autoencoders(index_file, dataset_name, data, epochs=100,
     batch_size=512, networks=[FourLayerCVAE],
     z_dims=[32,64,128], gammas=[0,0.001,0.01],
-    perceptual_nets=[None, SimpleExtractor('alexnet', 5)], force_repeat=False
+    perceptual_nets=[None, SimpleExtractor('alexnet', 5)], repetitions=1
 ):
     '''
     Trains autoencoders with all combinations of the given parameters that are
@@ -41,7 +44,7 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
         z_dims ([int]): The z_dim values to try
         gammas ([float]): The gamma values to try (0 = non-variational)
         perceptual_nets ([nn.Module/None]): Perceptual networks for loss
-        force_repeat (bool): Whether to force new AE with same parameters
+        repetitions (int): How many AEs to train with each setting
     '''
 
     #Create the index path + file if they don't exist already
@@ -64,6 +67,8 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
                 'z_dim',
                 'gamma',
                 'perceptual_net',
+                'actual_epochs', 
+                'process_time',
                 'validation_loss'
             ])
 
@@ -84,54 +89,62 @@ def generate_autoencoders(index_file, dataset_name, data, epochs=100,
             str(perceptual_net)
         ]
         
-        # Unless force repetition, don't repeat training with same parameters
-        if not force_repeat:
-            already_trained = False
-            with open(index_file, 'r') as index:
-                index_reader = csv.reader(index, delimiter='\t')
+        # Don't train more AEs per setting than necessary 
+        already_trained = 0
+        with open(index_file, 'r') as index:
+            index_reader = csv.reader(index, delimiter='\t')
+            try:
                 field_names = next(index_reader)
-                for row in index_reader:
-                    if list(row[1:-1]) == parameters:
-                        already_trained = True
-                        break
-            # Don't train a new AE if one with these parameters exists
-            if already_trained:
-                continue
+            except StopIteration:
+                raise RuntimeError(
+                    f'Header is missing in {index_file} '
+                    f'Delete the file and run again'
+                )
+            for row in index_reader:
+                if list(row[1:-3]) == parameters:
+                    already_trained += 1
+        
+        # Train as many AEs as are missing for this parameter setting
+        for _ in range(repetitions-already_trained):
 
-        # Initialize an autoencoder model with the given parameters
-        model = network(
-            input_size = input_size,
-            z_dimensions = z_dim,
-            variational = (gamma != 0),
-            gamma = gamma,
-            perceptual_net = perceptual_net
-        )
+            # Initialize an autoencoder model with the given parameters
+            model = network(
+                input_size = input_size,
+                z_dimensions = z_dim,
+                variational = (gamma != 0),
+                gamma = gamma,
+                perceptual_net = perceptual_net
+            )
 
-        # Train the autoencoder with the data
-        model, model_path, val_loss = train_autoencoder(
-            data,
-            model,
-            epochs,
-            batch_size,
-            gpu=torch.cuda.is_available(),
-            display=False,
-            save_path='checkpoints'
-        )
+            # Train the autoencoder with the data and meassure the time it takes
+            timestamp = time.process_time()
+            model, model_path, val_loss, actual_epochs = train_autoencoder(
+                data,
+                model,
+                epochs,
+                batch_size,
+                gpu=torch.cuda.is_available(),
+                display=False,
+                save_path='checkpoints'
+            )
+            elapsed_time = time.process_time() - timestamp
 
-        # Save the path and parameters to index_file
-        with open(index_file, 'a') as index:
-            index_writer = csv.writer(index, delimiter='\t')
-            index_writer.writerow([
-                model_path,
-                dataset_name,
-                str(input_size),
-                str(epochs),
-                str(network),
-                str(z_dim),
-                str(gamma),
-                str(perceptual_net),
-                str(val_loss)
-            ])
+            # Save the path and parameters to index_file
+            with open(index_file, 'a') as index:
+                index_writer = csv.writer(index, delimiter='\t')
+                index_writer.writerow([
+                    model_path,
+                    dataset_name,
+                    str(input_size),
+                    str(epochs),
+                    str(network),
+                    str(z_dim),
+                    str(gamma),
+                    str(perceptual_net),
+                    str(actual_epochs),
+                    str(elapsed_time),
+                    str(val_loss)
+                ])
 
 def generate_dense_architectures(hidden_sizes, hidden_nrs):
     '''
@@ -153,7 +166,7 @@ def generate_dense_architectures(hidden_sizes, hidden_nrs):
 def run_experiment(results_file, dataset_name, train_data, validation_data,
     test_data, autoencoder_index, epochs, batch_size, predictor_architectures,
     predictor_hidden_functions, predictor_output_functions,
-    allowed_ae_parameters={}, force_repeat=False
+    allowed_ae_parameters={}, ae_repetitions=1, predictor_repetitions=1
 ):
     '''
     Trains and tests fully connected networks with the given architectures on
@@ -172,7 +185,8 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
         predictor_hidden_functions ([f()->nn.Module]): Hidden layer functions
         predictor_out_functions ([f()->nn.Module]): Output activation functions
         allowed_ae_parameters ({[any]}): Allowed parameters (all if empty)
-        force_repeat (bool): Whether to force repeating old test
+        ae_repetitions (int): Nr of AEs with the same settings to test
+        predictor_repetitions (int): Nr of predictors to train per setting
     '''
     
     #Create the results path + file if they don't exist already
@@ -194,17 +208,23 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                 'z_dim',
                 'gamma',
                 'perceptual_net',
-                'autoencoder_val_loss',
+                'autoencoder_actual_epochs',
+                'autoencoder_time',
+                'autoencoder_val_loss', 
                 'predictor_path',
                 'architecture',
                 'hidden_function',
                 'out_function',
                 'predictor_epochs',
-                'validation_MSE',
-                'test_MSE',
-                'Mean_L1_distance',
-                'Mean_L2_distance',
-                'Accuracy'
+                'predictor_actual_epochs',
+                'predictor_train_time',
+                'autoencode_test_time',
+                'predictor_test_time',
+                'validation_mse',
+                'test_mse',
+                'mean_l1_distance',
+                'mean_l2_distance',
+                'accuracy'
             ])
 
     # Setup variables and losses that is used by all tests
@@ -222,9 +242,16 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
 
     # Collect paths and parameters of all autoencoders to use
     autoencoders = []
+    repetition_counter = {}
     with open(autoencoder_index, 'r') as index:
         index_reader = csv.reader(index, delimiter='\t')
-        field_names = next(index_reader)
+        try:
+            field_names = next(index_reader)
+        except StopIteration:
+            raise RuntimeError(
+                f'Header is missing in {autoencoder_index} '
+                f'Delete the file and run again'
+            )
         for row in index_reader:
             if row[1] != dataset_name or row[2] != str(image_size):
                 continue
@@ -236,28 +263,23 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
                     allowed_autoencoder = False
                     break
             if allowed_autoencoder:
-                autoencoders.append(row)
+                key = tuple(row[1:-3])
+                if not key in repetition_counter:
+                    repetition_counter[key] = 1
+                    autoencoders.append(row)
+                elif repetition_counter[key] < ae_repetitions:
+                    repetition_counter[key] = repetition_counter[key] + 1
+                    autoencoders.append(row)
+                
     
     # For all autoencoders run the test with all predictors
     for autoencoder_parameters in autoencoders:
         autoencoder_path = autoencoder_parameters[0]
+        encoding_size = int(autoencoder_parameters[5])
         autoencoder = torch.load(autoencoder_path, map_location='cpu')
-        
-        # Encode and prepare the data
-        print(f'Encoding data with autoencoder at {autoencoder_path}...')
-        train_encoded = encode_data(autoencoder,train_data[0],batch_size)
-        train_dataset = TensorDataset(train_encoded, train_data[1])
-        train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
-        
-        val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
-        val_dataset = TensorDataset(val_encoded, validation_data[1])
-        val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
-        
-        test_encoded = encode_data(autoencoder,test_data[0],batch_size)
-        test_dataset = TensorDataset(test_encoded, test_data[1])
-        test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
 
-        encoding_size = train_encoded.size(-1)
+        # Encode and prepare the data only once for each AE
+        ae_encoded = False
 
         # Train and test all predictors on the given data
         for architecture, hidden_func, out_func in product(
@@ -277,63 +299,87 @@ def run_experiment(results_file, dataset_name, train_data, validation_data,
             )
             optimizer = torch.optim.Adam(predictor.parameters())
 
-            # Unless force repetition, don't repeat test with same parameters
-            if not force_repeat:
-                parameters = [
-                    autoencoder_path,
-                    str(architecture),
-                    str(hidden_func),
-                    str(out_func),
-                    str(epochs)                
-                ]
-                already_tested = False
-                with open(results_file, 'r') as results:
-                    results_reader = csv.reader(results, delimiter='\t')
-                    try:
-                        field_names = next(results_reader)
-                    except StopIteration:
-                        raise RuntimeError(
-                            f'Header is missing in {results_file} '
-                            f'Delete the file and run again'
-                        )
-                    for row in results_reader:
-                        if list([row[i] for i in [0,10,11,12,13]]) == parameters:
-                            already_tested = True
-                            break
-                # If a model has already been tested new one won't be
-                if already_tested:
-                    continue
+            # Don't train more predictors per setting than necessary
+            parameters = [
+                autoencoder_path,
+                str(architecture),
+                str(hidden_func),
+                str(out_func),
+                str(epochs)                
+            ]
+            already_tested = 0
+            with open(results_file, 'r') as results:
+                results_reader = csv.reader(results, delimiter='\t')
+                try:
+                    field_names = next(results_reader)
+                except StopIteration:
+                    raise RuntimeError(
+                        f'Header is missing in {results_file} '
+                        f'Delete the file and run again'
+                    )
+                for row in results_reader:
+                    if list([row[i] for i in [0,12,13,14,15]]) == parameters:
+                        already_tested += 1
+            
+            # Train as many predictors as are missing for this parameter setting
+            for _ in range(predictor_repetitions-already_tested):
 
-            # Train the predictor
-            early_stop = EarlyStopper(patience=max(10, epochs/20))
-            predictor, predictor_path, validation_loss = run_training(
-                predictor, train_loader, val_loader, losses,
-                optimizer, 'checkpoints', epochs, epoch_update=early_stop
-            )
+                # If it's the first iteration with this AE, prepare the data
+                if not ae_encoded:
+                    print(f'Encoding data with autoencoder at {autoencoder_path}...')
+                    train_encoded = encode_data(autoencoder,train_data[0],batch_size)
+                    train_dataset = TensorDataset(train_encoded, train_data[1])
+                    train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
+                    
+                    val_encoded = encode_data(autoencoder,validation_data[0],batch_size)
+                    val_dataset = TensorDataset(val_encoded, validation_data[1])
+                    val_loader = DataLoader(val_dataset, batch_size, shuffle=False)
+                    
+                    timestamp = time.process_time()
+                    test_encoded = encode_data(autoencoder,test_data[0],batch_size)
+                    test_dataset = TensorDataset(test_encoded, test_data[1])
+                    test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
+                    autoencode_test_time = time.process_time() - timestamp
 
-            # Test the predictor
-            test_losses = run_epoch(
-                predictor, test_loader, losses, optimizer,
-                epoch_name='Test',train=False
-            )
-            print()
+                    ae_encoded = True
 
-            # Write the results to a .csv file
-            with open(results_file, 'a') as results:
-                results_writer = csv.writer(
-                    results,
-                    delimiter='\t',
-                    quotechar='"',
-                    quoting=csv.QUOTE_MINIMAL
+                # Train the predictor and meassure the time it takes
+                early_stop = EarlyStopper(patience=max(10, epochs/20))
+                timestamp = time.process_time()
+                (
+                    predictor, predictor_path, validation_loss, actual_epochs
+                ) = run_training(
+                    predictor, train_loader, val_loader, losses,
+                    optimizer, 'checkpoints', epochs, epoch_update=early_stop
                 )
-                results_writer.writerow(
-                    autoencoder_parameters +
-                    [
-                        predictor_path, architecture, str(hidden_func),
-                        str(out_func), epochs, validation_loss
-                    ] +
-                    test_losses
+                train_time = time.process_time() - timestamp
+
+                # Test the predictor and meassure the time it takes
+                timestamp = time.process_time()
+                test_losses = run_epoch(
+                    predictor, test_loader, losses, optimizer,
+                    epoch_name='Test',train=False
                 )
+                test_time = time.process_time() - timestamp
+                print()
+
+                # Write the results to a .csv file
+                with open(results_file, 'a') as results:
+                    results_writer = csv.writer(
+                        results,
+                        delimiter='\t',
+                        quotechar='"',
+                        quoting=csv.QUOTE_MINIMAL
+                    )
+                    results_writer.writerow(
+                        autoencoder_parameters +
+                        [
+                            predictor_path, architecture, str(hidden_func),
+                            str(out_func), epochs, actual_epochs, train_time,
+                            autoencode_test_time, test_time, validation_loss
+                        ] +
+                        test_losses
+                    )
 
 def main():
     '''
@@ -358,8 +404,11 @@ def main():
     )
     parser.add_argument(
         #To add an autoencoder, append its name here and preprocessing later
-        '--ae_networks', type=str, choices=['FourLayerCVAE'],
-        default=['FourLayerCVAE'], nargs='+',
+        '--ae_networks', type=str, default=['FourLayerCVAE'], nargs='+',
+        choices=[
+            'FourLayerCVAE', 'PerceptualPredictorCVAE', 'FeatureAutoencoder',
+            'PerceptualFeatureToImgCVAE', 'FeatureToImgCVAE'
+        ],
         help='The different autoencoder networks to use'
     )
     parser.add_argument(
@@ -397,13 +446,13 @@ def main():
 
     )
     parser.add_argument(
-        '--ae_repeat', action='store_true',
-        help='Force training of AEs that have already been tested'
+        '--ae_repetitions', type=int, default=1,
+        help='How many AEs to train with each hyperparamter setting'
 
     )
     parser.add_argument(
-        '--predictor_repeat', action='store_true',
-        help='Force training of predictors that have already been tested'
+        '--predictor_repetitions', type=int, default=1,
+        help='How many predictors per AE and hyperparameter setting to train'
 
     )
     #TODO: Implement
@@ -447,6 +496,14 @@ def main():
     for network in args.ae_networks:
         if network == 'FourLayerCVAE':
             networks.append(FourLayerCVAE)
+        elif network == 'PerceptualPredictorCVAE':
+            networks.append(PerceptualPredictorCVAE)
+        elif network == 'FeatureAutoencoder':
+            networks.append(FeatureAutoencoder)
+        elif network == 'PerceptualFeatureToImgCVAE':
+            networks.append(PerceptualFeatureToImgCVAE)
+        elif network == 'FeatureToImgCVAE':
+            networks.append(FeatureToImgCVAE)
         else:
             raise ValueError(
                 f'{network} does not match any known autoencoder'
@@ -477,7 +534,7 @@ def main():
         z_dims = args.ae_zs,
         gammas = args.ae_gammas,
         perceptual_nets = perceptual_nets,
-        force_repeat = args.ae_repeat
+        repetitions = args.ae_repetitions
     )
 
     # Load the predictor training and testing data, code here to add dataset
@@ -488,10 +545,12 @@ def main():
             'then uncomment and add file names below'
         )
         #data, labels = load_lunarlander_data(
-        #    './datasets/LunarLander-v2/<name_of_file>'
+        #    './datasets/LunarLander-v2/<name_of_file>',
+        #    keep_off_screen=False
         #)
         #test_data, test_labels = load_lunarlander_data(
-        #    './datasets/LunarLander-v2/<name_of_file>'
+        #    './datasets/LunarLander-v2/<name_of_file>',
+        #    keep_off_screen=False
         #)
     elif args.data == 'stl10':
         data, labels = load_stl_data(
@@ -546,7 +605,8 @@ def main():
         predictor_hidden_functions = hidden_functions,
         predictor_output_functions = out_functions,
         allowed_ae_parameters = allowed_ae_parameters,
-        force_repeat = args.predictor_repeat
+        ae_repetitions = args.ae_repetitions,
+        predictor_repetitions = args.predictor_repetitions
     )
 
 # When this file is executed independently, execute the main function

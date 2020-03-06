@@ -49,7 +49,7 @@ def run_epoch(model, dataloader, loss, optimizer,
         if train:
             optimizer.step()
         print(
-            '\r{} - [{}/{}] - Losses: {}, Time passed: {}s'.format(
+            '\r{} - [{}/{}] - Losses: {}, Time elapsed: {}s'.format(
                 epoch_name, batch_id+1, len(dataloader),
                 ', '.join(
                     ['{0:.5f}'.format(l/(batch_id+1)) for l in epoch_losses]
@@ -74,7 +74,7 @@ def run_training(model, train_loader, val_loader, loss,
         epochs (int): Number of epochs to train for
         epoch_update (f(epoch, train_loss, val_loss) -> bool): Function to run
             at the end of a epoch. Returns whether to early stop
-    Returns (nn.Module, str, float): The model, filepath, and validation loss
+    Returns (nn.Module, str, float, int): The model, path, val loss, and epochs
     '''
     save_file = (
         model. __class__.__name__ + 
@@ -85,6 +85,7 @@ def run_training(model, train_loader, val_loader, loss,
 
     torch_model_save(model, save_file)
     best_validation_loss = float('inf')
+    best_epoch = 0
     for epoch in range(1,epochs+1):
         training_losses = run_epoch(
             model, train_loader, loss, optimizer,
@@ -100,12 +101,13 @@ def run_training(model, train_loader, val_loader, loss,
             f'\rEpoch {epoch} - '
             f'Train loss {training_losses[0]:.5f} - '
             f'Validation loss {validation_losses[0]:.5f}',
-            ' '*32
+            ' '*35
         )
 
         if validation_losses[0] < best_validation_loss:
             torch_model_save(model, save_file)
             best_validation_loss = validation_losses[0]
+            best_epoch = epoch
         
         if not epoch_update is None:
             early_stop = epoch_update(epoch, training_losses, validation_losses)
@@ -113,7 +115,7 @@ def run_training(model, train_loader, val_loader, loss,
                 break
 
     model = torch.load(save_file)
-    return model, save_file, best_validation_loss
+    return model, save_file, best_validation_loss, best_epoch
 
 class EarlyStopper():
     '''
