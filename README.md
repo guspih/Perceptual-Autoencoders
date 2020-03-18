@@ -1,7 +1,9 @@
 # Perceptual-Autoencoders
-Implementation of [Improving Image Autoencoder Embeddings with Perceptual Loss](https://arxiv.org/abs/2001.03444)
+Implementation of [Improving Image Autoencoder Embeddings with Perceptual Loss](https://arxiv.org/abs/2001.03444) and [Pretraining Image Encoders without Reconstruction via Feature Prediction Loss](https://arxiv.org/abs/2003.07441)
 
-Cite paper or repository with:
+## Cite papers or repository
+
+If you are using the repository or work as part of a scientific work you should cite the following paper:
 ```
 @article{pihlgren2020improving,
     title={Improving Image Autoencoder Embeddings with Perceptual Loss},
@@ -10,6 +12,17 @@ Cite paper or repository with:
     journal={arXiv preprint arXiv:2001.03444},
 }
 ```
+
+If you are using anything from perceptual_embedder.py (i.e. FeaturePredictorCVAE, FeatureAutoencoder, PerceptualFeatureToImgCVAE, or FeatureToImgCVAE) you should also cite this paper:
+```
+@article{pihlgren2020pretraining,
+    title={Pretraining Image Encoders without Reconstruction via Feature Prediction Loss},
+    author={Gustav Grund Pihlgren and Fredrik Sandin and Marcus Liwicki},
+    year={2020},
+    journal={arXiv preprint arXiv:2003.07441},
+}
+```
+
 
 ## Requirements
 The repository have been tested with Python 3.6 and 3.7, Pytorch 1.2.0, Torchvision 0.4.0, and SciPy 1.3.1
