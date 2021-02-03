@@ -5,7 +5,7 @@ Implementation of [Improving Image Autoencoder Embeddings with Perceptual Loss](
 
 If you are using the repository or work as part of a scientific work you should cite the following paper:
 ```
-@INPROCEEDINGS{9207431,
+@INPROCEEDINGS{pihlgren2020improving,
     author={G. G. {Pihlgren} and F. {Sandin} and M. {Liwicki}},
     booktitle={2020 International Joint Conference on Neural Networks (IJCNN)}, 
     title={Improving Image Autoencoder Embeddings with Perceptual Loss}, 
