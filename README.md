@@ -17,11 +17,13 @@ If you are using the repository or work as part of a scientific work you should 
 
 If you are using anything from perceptual_embedder.py (i.e. FeaturePredictorCVAE, FeatureAutoencoder, PerceptualFeatureToImgCVAE, or FeatureToImgCVAE) you should also cite this paper:
 ```
-@article{pihlgren2020pretraining,
-    title={Pretraining Image Encoders without Reconstruction via Feature Prediction Loss},
-    author={Gustav Grund Pihlgren and Fredrik Sandin and Marcus Liwicki},
-    year={2020},
-    journal={arXiv preprint arXiv:2003.07441},
+@INPROCEEDINGS{9412239,
+  author={Grund Pihlgren, Gustav and Sandin, Fredrik and Liwicki, Marcus},
+  booktitle={2020 25th International Conference on Pattern Recognition (ICPR)}, 
+  title={Pretraining Image Encoders without Reconstruction via Feature Prediction Loss}, 
+  year={2021},
+  pages={4105-4111},
+  doi={10.1109/ICPR48806.2021.9412239}
 }
 ```
 
